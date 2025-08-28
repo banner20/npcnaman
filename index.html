@@ -13,7 +13,8 @@
             justify-content: center;
             min-height: 100vh;
             margin: 0;
-            background-color: #f0f0f0;
+            background-color: #000;
+            text-align: center;
         }
         header {
             display: flex;
@@ -24,6 +25,7 @@
         h1 {
             margin: 0;
             font-size: 1.2rem;
+            color: white;
         }
         img {
             max-width: 90%;
@@ -34,7 +36,7 @@
         .note {
             margin-top: 12px;
             font-size: 0.9rem;
-            color: #555;
+            color: #ccc;
         }
     </style>
 </head>
@@ -48,90 +50,111 @@
         <img id="randomImage" src="" alt="A sequential image">
     </main>
 
-    <div class="note">Press <strong>Space</strong> to advance. Press <strong>R</strong> to reset to the first image. Sequence persists per user in this browser.</div>
+    <div class="note"> <strong></strong>  <strong></strong>  <strong></strong></div>
     
     <script>
-        // CONFIG: adjust these to match your setup
-        const totalImages = 31;      // set this to how many images you actually have (e.g. 30)
-        const basePath = "";         // e.g. "images/" if files are in /images/
-        const extension = ".jpg";    // change if PNG or different
+        // --- CONFIGURATION ---
+        const seriesData = {
+            'series1': {
+                basePath: "",
+                totalImages: 31,
+                storageKey: "npcImageIndex_series1"
+            },
+            'series2': {
+                basePath: "series2/",
+                totalImages: 31, // Adjust if series 2 has a different number of images
+                storageKey: "npcImageIndex_series2"
+            }
+        };
+        const extension = ".jpg";
+        const initialSeries = 'series1';
+        // ---------------------
 
         const imageElement = document.getElementById('randomImage');
-        const storageKey = "npcImageIndex";
+        let currentSeries = initialSeries;
 
-        // Read last shown index (0 if none), compute next index to show
+        function getCurrentConfig() {
+            return seriesData[currentSeries];
+        }
+
         function getNextIndexFromStorage() {
-            let last = parseInt(localStorage.getItem(storageKey) || "0", 10);
+            const config = getCurrentConfig();
+            let last = parseInt(localStorage.getItem(config.storageKey) || "0", 10);
             if (!Number.isFinite(last) || last < 0) last = 0;
             let nextIndex = last + 1;
-            if (nextIndex > totalImages) nextIndex = 1;
+            if (nextIndex > config.totalImages) nextIndex = 1;
             return nextIndex;
         }
 
-        // Save index (index of the image currently shown)
         function saveCurrentIndex(idx) {
-            localStorage.setItem(storageKey, String(idx));
+            const config = getCurrentConfig();
+            localStorage.setItem(config.storageKey, String(idx));
         }
 
-        // Try to show image idx; if it 404s we'll advance up to totalImages times
         let attemptsGlobal = 0;
         function tryShow(idx) {
+            const config = getCurrentConfig();
             let attempts = 0;
             imageElement.onerror = function () {
                 attempts++;
                 attemptsGlobal++;
-                if (attempts < totalImages && attemptsGlobal < totalImages * 2) {
+                if (attempts < config.totalImages && attemptsGlobal < config.totalImages * 2) {
                     idx = idx + 1;
-                    if (idx > totalImages) idx = 1;
+                    if (idx > config.totalImages) idx = 1;
                     saveCurrentIndex(idx);
-                    imageElement.src = basePath + idx + extension;
+                    imageElement.src = config.basePath + idx + extension;
                 } else {
                     imageElement.onerror = null;
-                    imageElement.alt = "No images found at the configured paths.";
+                    imageElement.alt = "No images found in this series.";
                 }
             };
-            // set src and save it as the current shown index
-            imageElement.src = basePath + idx + extension;
+            imageElement.src = config.basePath + idx + extension;
             saveCurrentIndex(idx);
         }
 
-        // Advance one image (used by Spacebar)
         function advanceImage() {
-            let last = parseInt(localStorage.getItem(storageKey) || "0", 10);
+            const config = getCurrentConfig();
+            let last = parseInt(localStorage.getItem(config.storageKey) || "0", 10);
             if (!Number.isFinite(last) || last < 0) last = 0;
             let next = last + 1;
-            if (next > totalImages) next = 1;
+            if (next > config.totalImages) next = 1;
             tryShow(next);
         }
 
-        // Reset sequence to first image (used by R key)
         function resetSequenceToStart() {
-            tryShow(1); // tryShow saves index -> next refresh will show 2
+            tryShow(1);
         }
 
-        // On load: compute next index and show it
-        const indexToShow = getNextIndexFromStorage();
-        tryShow(indexToShow);
+        function switchSeries() {
+            currentSeries = (currentSeries === 'series1') ? 'series2' : 'series1';
+            // Load the last viewed image from the new series, or the first one if none.
+            const indexToShow = getNextIndexFromStorage();
+            tryShow(indexToShow);
+        }
 
-        // Keyboard support:
-        // - Space: advance (prevents page scroll; ignores typing fields)
-        // - R: reset to first image (ignores typing fields)
+        // Initial load
+        tryShow(getNextIndexFromStorage());
+
+        // Keyboard support
         document.addEventListener('keydown', function (e) {
             const tgt = e.target;
-            // ignore when typing in input/textarea or contenteditable
             if (tgt && (tgt.tagName === 'INPUT' || tgt.tagName === 'TEXTAREA' || tgt.isContentEditable)) return;
 
-            // Space advances
             if (e.code === 'Space' || e.key === ' ') {
-                e.preventDefault(); // prevent page scroll
+                e.preventDefault();
                 advanceImage();
                 return;
             }
 
-            // R resets to start (handle both lowercase and uppercase)
             if (e.code === 'KeyR' || e.key === 'r' || e.key === 'R') {
                 e.preventDefault();
                 resetSequenceToStart();
+                return;
+            }
+
+            if (e.code === 'KeyK' || e.key === 'k' || e.key === 'K') {
+                e.preventDefault();
+                switchSeries();
                 return;
             }
         });
